@@ -1,2 +1,4 @@
 numpy
 pandas
+fireworks-ai
+python-dotenv
