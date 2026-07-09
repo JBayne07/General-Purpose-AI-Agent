@@ -2,5 +2,18 @@
   {
     "task_id": "t1",
     "prompt": "Summarise the following text in one sentence: The moonlight painted silver lines across the quiet lake."
-  }
+  },
+  {
+    "task_id": "t2",
+    "prompt": "What is 1 plus 1"
+  },
+  {
+    "task_id": "t3",
+    "prompt": "What is five percent of 100"
+  },
+  {
+    "task_id": "t4",
+    "prompt": "How to change a tire of a corolla"
+  },
+  
 ]
