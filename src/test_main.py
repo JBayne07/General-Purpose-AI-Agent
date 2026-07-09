@@ -12,6 +12,11 @@ except ImportError:
 # ---------------------------------------------------------
 # 1. Load Environment Variables (DO NOT HARDCODE)
 # ---------------------------------------------------------
+FIREWORKS_AVAILABLE = True
+API_KEY = None
+BASE_URL = None
+FIREWORKS_MODEL = None
+
 try:
     API_KEY = os.environ["FIREWORKS_API_KEY"] # [cite: 56]
     BASE_URL = os.environ["FIREWORKS_BASE_URL"] # [cite: 58]
@@ -21,8 +26,8 @@ try:
     # Pick the first allowed model for external calls (or write logic to select)
     FIREWORKS_MODEL = ALLOWED_MODELS[0] 
 except KeyError as e:
-    print(f"CRITICAL ERROR: Missing environment variable {e}")
-    exit(1)
+    print(f"WARNING: Missing environment variable {e}. Fireworks API will be disabled.")
+    FIREWORKS_AVAILABLE = False
 
 
 # ---------------------------------------------------------
@@ -106,12 +111,23 @@ def route_task(prompt):
     to the zero-cost local model, and routes complex tasks (math, logic puzzles, coding, instructions, factual)
     to the Fireworks API to maximize accuracy while minimizing cost.
     """
+    global FIREWORKS_AVAILABLE
+    
+    if not FIREWORKS_AVAILABLE:
+        print("Routing to Local Model (Fireworks API is unavailable)")
+        return call_local_model(prompt)
+        
     prompt_lower = prompt.lower()
     
     # If the prompt is very long, it requires larger context and better comprehension
     if len(prompt) > 800:
         print("Routing to Fireworks API (Long prompt context)")
-        return call_fireworks_api(prompt)
+        try:
+            return call_fireworks_api(prompt)
+        except Exception as e:
+            print(f"Error calling Fireworks API: {e}. Falling back to local model.")
+            FIREWORKS_AVAILABLE = False
+            return call_local_model(prompt)
         
     # Light task keywords (NLP tasks where Qwen 0.5B excels)
     light_keywords = [
@@ -133,7 +149,12 @@ def route_task(prompt):
         return call_local_model(prompt)
     else:
         print("Routing to Fireworks API (Heavy/Reasoning/Factual Task)")
-        return call_fireworks_api(prompt)
+        try:
+            return call_fireworks_api(prompt)
+        except Exception as e:
+            print(f"Error calling Fireworks API: {e}. Falling back to local model.")
+            FIREWORKS_AVAILABLE = False
+            return call_local_model(prompt)
 
 
 
