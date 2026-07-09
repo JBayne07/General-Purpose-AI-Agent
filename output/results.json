@@ -5,14 +5,46 @@
   },
   {
     "task_id": "t2",
-    "answer": "1 plus 1 equals 2."
+    "answer": "1 plus 1 equals **2**."
   },
   {
     "task_id": "t3",
-    "answer": "Five percent of 100 is 5."
+    "answer": "Five percent of 100 is **5**. \n\n(5% means 5 per 100, so 5% \u00d7 100 = 5.)"
   },
   {
     "task_id": "t4",
-    "answer": "Changing a tire on a Toyota Corolla is a straightforward process, but safety is the most important part. Here\u2019s a step-by-step guide that covers the essentials\u2014from preparation to getting back on the road.\n\n---\n\n### What You\u2019ll Need\nYour Corolla comes with a basic toolkit; make sure everything is present before you need it.  \n- **Spare tire** (usually located in the trunk, under the trunk floor mat)  \n- **Jack** (scissor-type, often secured in the trunk side pocket or under the floor)  \n- **Lug wrench** (in the same tool kit)  \n- **Vehicle owner\u2019s manual** (for exact jack points and torque specs)  \n- **Wheel chocks** (optional but highly recommended\u2014a piece of wood or a large rock works)  \n- **Gloves and a flashlight** (useful, especially at night)  \n\n---\n\n### Step 1: Safety First\n- **Pull over** to a level, solid surface as far away from traffic as possible. Never change a tire on a soft shoulder or an uneven slope.  \n- **Turn on your hazard lights** and engage the parking brake firmly.  \n- If you have wheel chocks, place them on the opposite side of the wheel you\u2019re changing (e.g., if changing the front left, chock the right rear).  \n- Make sure the car is in **Park** (automatic) or in **1st/Reverse gear**"
+    "answer": "Changing a flat tire on a Toyota Corolla is a straightforward process, but safety is the most important part. Here\u2019s a step-by-step guide that applies to most recent Corolla models (2014\u2013present) and many older ones as well.\n\n---\n\n### \ud83d\udee0\ufe0f Tools and Equipment You\u2019ll Need\nBefore you start, locate these items in your Corolla. They are usually stored under the trunk floor, often held in a foam tray or strapped down.\n\n- **Spare tire** (temporary \u201cdonut\u201d spare or full-size spare \u2013 check inflation regularly)\n- **Jack** (scissor-type, specific to your Corolla)\n- **Lug wrench** (cross-shaped or the one provided)\n- **Jack handle** (often part of the lug wrench or a separate bar)\n- **Wheel bolt/lock key** (if your car has anti-theft lug nuts \u2013 usually in the glove box or toolkit)\n- **Owner\u2019s manual** (to find the correct jack points)\n\nOptional but helpful: gloves, wheel chocks, flashlight, reflective warning triangle or flares.\n\n---\n\n### \ud83d\udea6 Step 1: Get to a Safe Spot\n- Pull over to a flat, stable, hard surface as far away from traffic as possible.\n- Turn on your hazard lights and set the parking brake firmly.\n- If you have a manual transmission, put it in 1st or Reverse; if automatic, shift to Park (P).\n- Place wheel chocks, blocks of wood, or rocks behind the opposite-end wheels (if changing a front tire, chock the rear wheels, and vice versa) to prevent any rolling.\n\n---\n\n### \ud83d\udd29 Step 2: Loosen the Lug Nuts (While Car Is on the Ground)\n- Remove the hubcap or wheel cover if your Corolla has them (some trims have exposed lug nuts). Use the flat end of the lug wrench to pop off the cover, or consult the manual.\n- With the lug wrench, turn each lug nut **counterclockwise** about a"
+  },
+  {
+    "task_id": "practice-01",
+    "answer": "The capital of Australia is **Canberra**. It is located inland and is not directly on the coast. The most prominent body of water it is near is **Lake Burley Griffin**, an artificial lake in the centre of the city, created by damming the **Molonglo River** (which flows into the Murrumbidgee River, part of the Murray\u2013Darling basin). While Canberra sits about 150 km from the Tasman Sea (the South Pacific Ocean), the lake and river are its immediate, defining"
+  },
+  {
+    "task_id": "practice-02",
+    "answer": "We are asked: \"A store has 240 items. It sells 15% on Monday and 60 more on Tuesday. How many items remain?\" Let's read carefully. The store has 240 items. It sells 15% (presumably of the original 240 items, or 15% of what?) Usually \"sells 15%\" means 15% of the total initial items. But sometimes it could mean 15% of the items at that point. The wording \"sells 15% on Monday and 60 more on Tuesday\" likely means: On Monday, it sells 15% of the 240 items. Then on Tuesday, it sells an additional 60 items. The question asks how many items remain.\n\nLet's calculate:\n15% of 240 = 0.15 * 240 = 36 items sold on Monday.\nItems sold on Tuesday = 60.\nTotal sold = 36 + 60 = 96.\nItems remaining = 240 - 96 = 144.\n\nAlternatively, if \"sells 15% on Monday and 60 more on Tuesday\" means it sells 15% on Monday, and on Tuesday it sells 60 more than it did on Monday? \"60 more\" could mean 60 more items than Monday? But typical phrasing \"sells 15% on Monday and 60 more on Tuesday\" could be interpreted as \"sells 15% on Monday, and sells 60 more items on Tuesday\". Actually \"60 more on Tuesday\" usually means an additional 60 items on Tuesday, not 60 more than Monday. If it meant 60 more than Monday, it would likely say \"and on Tuesday it sells 60 more than on Monday\" or similar. However, let's check if there's ambiguity. \"sells 15% on Monday and 60 more on Tuesday\" => \"60 more\" could be \"60 more items\", which is just 60 items. Or it could be \"60% more\"? No, it says \"60 more\". Usually math problems: \"A store has 240 items. It sells 15% on Monday and 60 more on Tuesday.\" This could be a translation: sold 15% on Monday, and sold 60 more (items) on Tuesday. So remaining = 240 - 0.15*240 - 60 = 240 - 36 - 60 = 144.\n\nI'll answer 144, but let's double-check if there's any trick. \""
+  },
+  {
+    "task_id": "practice-03",
+    "answer": "The sentiment of this review can be classified as mixed. While the reviewer acknowledges that the battery life is \"great,\" they also mention that the screen scratches too easily. This indicates that the reviewer is not entirely satisfied with both aspects of the product. The positive aspect (great battery life) is outweighed by the negative aspect (screen scratches) in this review."
+  },
+  {
+    "task_id": "practice-04",
+    "answer": "The solar system, formed 4.6 billion years ago from the gravitational collapse of a giant interstellar molecular cloud, is a gravitationally bound system of the Sun and the objects that orbit it, with the majority of the system's mass being in the Sun and the majority of the remaining mass contained in the planet Jupiter."
+  },
+  {
+    "task_id": "practice-05",
+    "answer": "Based on the provided text, I can extract the following named entities and their types:\n\n1. Maria Sanchez: This is a person, so it is a noun.\n\n2. Fireworks AI: This is a company, so it is a noun.\n\n3. Berlin: This is a place, so it is a noun.\n\n4. March: This is a time reference, so it is a noun.\n\nThe text does not contain any other entities or their types."
+  },
+  {
+    "task_id": "practice-06",
+    "answer": "The bug is that the function only returns the first element (`nums[0]`) instead of finding the maximum value in the list. It never checks the other elements.\n\n**Fix:** Iterate through the list, compare each element, and keep track of the largest one found. Alternatively, use Python\u2019s built-in `max()` function.\n\nHere are two corrected versions:\n\n```python\n# Manual loop version (demonstrating the logic)\ndef get_max(nums):\n    max_val = nums[0]\n    for num in nums[1:]:\n        if num > max_val:\n            max_val = num\n    return max_val\n\n# Using the built-in function (simplest fix)\ndef get_max(nums):\n    return max(nums)\n```\n\nBoth will now correctly return the maximum value from the input list."
+  },
+  {
+    "task_id": "practice-07",
+    "answer": "Sam owns the cat. Since Jo owns the dog and Sam does not own the bird, the bird must belong to Lee. That leaves the cat for Sam."
+  },
+  {
+    "task_id": "practice-08",
+    "answer": "Below is a Python function that returns the second\u2011largest distinct number from a list. It correctly handles duplicates (ignores them"
   }
 ]

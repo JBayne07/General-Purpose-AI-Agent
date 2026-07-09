@@ -102,8 +102,9 @@ def call_fireworks_api(prompt):
 def route_task(prompt):
     """
     Decides whether to use the local model or the premium Fireworks API.
-    Routes complex tasks (code, advanced math, puzzles, long contexts) to Fireworks,
-    and straightforward tasks (summarization, simple math, sentiment, basic chat) to local.
+    Routes straightforward NLP tasks (summarization, sentiment analysis, extraction, simple translation)
+    to the zero-cost local model, and routes complex tasks (math, logic puzzles, coding, instructions, factual)
+    to the Fireworks API to maximize accuracy while minimizing cost.
     """
     prompt_lower = prompt.lower()
     
@@ -112,41 +113,28 @@ def route_task(prompt):
         print("Routing to Fireworks API (Long prompt context)")
         return call_fireworks_api(prompt)
         
-    # Keywords indicating coding, debugging, or data formats
-    code_keywords = [
-        "code", "program", "script", "function", "write a python", "debug", 
-        "compile", "syntax", "sql", "regex", "json", "yaml", "xml", "html", "css",
-        "javascript", "typescript", "java", "rust", "c++", "c#", "go lang"
+    # Light task keywords (NLP tasks where Qwen 0.5B excels)
+    light_keywords = [
+        "summarize", "summarise", "summary", 
+        "sentiment", "classify the sentiment", 
+        "extract all named entities", "extract entities", "named entity extraction",
+        "translate", "translation"
     ]
     
-    # Keywords indicating complex math, logic, or puzzles
-    math_logic_keywords = [
-        "solve for", "equation", "derivative", "integral", "matrix", "algebra",
-        "calculus", "probability", "statistics", "puzzle", "riddle", "logic",
-        "proof", "theorem", "math problem", "arithmetic"
-    ]
+    # Check if prompt contains any of the light keywords
+    is_light = any(kw in prompt_lower for kw in light_keywords)
     
-    # Keywords indicating heavy explanation or detailed instructions
-    complex_reasoning_keywords = [
-        "explain in detail", "step-by-step", "pros and cons", "compare and contrast",
-        "critical analysis", "detailed guide", "how to"
-    ]
+    # Heavy indicators (even if a light keyword is present, if it looks like coding/math it should go to Fireworks)
+    heavy_indicators = ["python", "javascript", "c++", "code", "bug", "function", "solve", "calculate"]
+    has_heavy = any(ind in prompt_lower for ind in heavy_indicators)
     
-    if any(kw in prompt_lower for kw in code_keywords):
-        print("Routing to Fireworks API (Coding task)")
+    if is_light and not has_heavy:
+        print("Routing to Local Model (Light NLP Task)")
+        return call_local_model(prompt)
+    else:
+        print("Routing to Fireworks API (Heavy/Reasoning/Factual Task)")
         return call_fireworks_api(prompt)
-        
-    if any(kw in prompt_lower for kw in math_logic_keywords):
-        print("Routing to Fireworks API (Math/Logic task)")
-        return call_fireworks_api(prompt)
-        
-    if any(kw in prompt_lower for kw in complex_reasoning_keywords):
-        print("Routing to Fireworks API (Complex Reasoning/Instructions)")
-        return call_fireworks_api(prompt)
-        
-    # If none of the above matches, it's likely a straightforward task (e.g. summarization, basic facts, short translation)
-    print("Routing to Local Model (Light task)")
-    return call_local_model(prompt)
+
 
 
 # ---------------------------------------------------------
