@@ -1,4 +1,18 @@
-{
+[
+  {
     "task_id": "t1",
-    "result": "The moonlight cast silver streaks upon the still lake."
-}
+    "answer": "The moonlight bathes the quiet lake in a silver hue, casting intricate patterns and reflections."
+  },
+  {
+    "task_id": "t2",
+    "answer": "1 plus 1 equals 2."
+  },
+  {
+    "task_id": "t3",
+    "answer": "Five percent of 100 is 5."
+  },
+  {
+    "task_id": "t4",
+    "answer": "Changing a tire on a Toyota Corolla is a straightforward process, but safety is the most important part. Here\u2019s a step-by-step guide that covers the essentials\u2014from preparation to getting back on the road.\n\n---\n\n### What You\u2019ll Need\nYour Corolla comes with a basic toolkit; make sure everything is present before you need it.  \n- **Spare tire** (usually located in the trunk, under the trunk floor mat)  \n- **Jack** (scissor-type, often secured in the trunk side pocket or under the floor)  \n- **Lug wrench** (in the same tool kit)  \n- **Vehicle owner\u2019s manual** (for exact jack points and torque specs)  \n- **Wheel chocks** (optional but highly recommended\u2014a piece of wood or a large rock works)  \n- **Gloves and a flashlight** (useful, especially at night)  \n\n---\n\n### Step 1: Safety First\n- **Pull over** to a level, solid surface as far away from traffic as possible. Never change a tire on a soft shoulder or an uneven slope.  \n- **Turn on your hazard lights** and engage the parking brake firmly.  \n- If you have wheel chocks, place them on the opposite side of the wheel you\u2019re changing (e.g., if changing the front left, chock the right rear).  \n- Make sure the car is in **Park** (automatic) or in **1st/Reverse gear**"
+  }
+]

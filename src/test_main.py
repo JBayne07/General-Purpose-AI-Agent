@@ -1,0 +1,196 @@
+import os
+import json
+import requests
+from llama_cpp import Llama
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# ---------------------------------------------------------
+# 1. Load Environment Variables (DO NOT HARDCODE)
+# ---------------------------------------------------------
+try:
+    API_KEY = os.environ["FIREWORKS_API_KEY"] # [cite: 56]
+    BASE_URL = os.environ["FIREWORKS_BASE_URL"] # [cite: 58]
+    # ALLOWED_MODELS is a comma-separated string [cite: 59]
+    ALLOWED_MODELS = os.environ["ALLOWED_MODELS"].split(",") # [cite: 59]
+    
+    # Pick the first allowed model for external calls (or write logic to select)
+    FIREWORKS_MODEL = ALLOWED_MODELS[0] 
+except KeyError as e:
+    print(f"CRITICAL ERROR: Missing environment variable {e}")
+    exit(1)
+
+
+# ---------------------------------------------------------
+# 2. File I/O Paths
+# ---------------------------------------------------------
+if os.path.exists("/input/tasks.json"):
+    INPUT_PATH = "/input/tasks.json" # [cite: 20]
+    OUTPUT_PATH = "/output/results.json" # [cite: 26]
+else:
+    # Resolve relative to the repository root
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    INPUT_PATH = os.path.join(base_dir, "input", "tasks.json")
+    OUTPUT_PATH = os.path.join(base_dir, "output", "results.json")
+
+# ---------------------------------------------------------
+# 3. Initialize Local Model (Zero Cost)
+# ---------------------------------------------------------
+# Assuming you pre-baked 'model.gguf' into your Docker image via COPY
+LOCAL_MODEL_PATH = "./model.gguf" 
+if not os.path.exists(LOCAL_MODEL_PATH):
+    # Try parent directory relative to this script
+    possible_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "model.gguf")
+    if os.path.exists(possible_path):
+        LOCAL_MODEL_PATH = possible_path
+
+print(f"Loading local model from {LOCAL_MODEL_PATH} into memory...")
+# Keep n_ctx small to save RAM in the 4GB environment [cite: 76]
+llm = Llama(model_path=LOCAL_MODEL_PATH, n_ctx=1024, verbose=False) 
+print("Local model loaded.")
+
+
+# ---------------------------------------------------------
+# 4. Helper Functions
+# ---------------------------------------------------------
+def call_local_model(prompt):
+    """Processes the prompt using the local zero-cost model."""
+    response = llm.create_chat_completion(
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=256
+    )
+    return response['choices'][0]['message']['content'].strip()
+
+
+def call_fireworks_api(prompt):
+    """Processes the prompt using the premium Fireworks API with retries and timeout."""
+    import time
+    url = f"{BASE_URL}/chat/completions"
+    
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": FIREWORKS_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 512
+    }
+    
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=20)
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            if attempt == max_attempts:
+                print(f"Fireworks API call failed after {max_attempts} attempts: {e}")
+                raise e
+            wait_time = attempt * 2
+            print(f"Warning: Connection attempt {attempt} failed ({e}). Retrying in {wait_time}s...")
+            time.sleep(wait_time)
+
+
+def route_task(prompt):
+    """
+    Decides whether to use the local model or the premium Fireworks API.
+    Routes complex tasks (code, advanced math, puzzles, long contexts) to Fireworks,
+    and straightforward tasks (summarization, simple math, sentiment, basic chat) to local.
+    """
+    prompt_lower = prompt.lower()
+    
+    # If the prompt is very long, it requires larger context and better comprehension
+    if len(prompt) > 800:
+        print("Routing to Fireworks API (Long prompt context)")
+        return call_fireworks_api(prompt)
+        
+    # Keywords indicating coding, debugging, or data formats
+    code_keywords = [
+        "code", "program", "script", "function", "write a python", "debug", 
+        "compile", "syntax", "sql", "regex", "json", "yaml", "xml", "html", "css",
+        "javascript", "typescript", "java", "rust", "c++", "c#", "go lang"
+    ]
+    
+    # Keywords indicating complex math, logic, or puzzles
+    math_logic_keywords = [
+        "solve for", "equation", "derivative", "integral", "matrix", "algebra",
+        "calculus", "probability", "statistics", "puzzle", "riddle", "logic",
+        "proof", "theorem", "math problem", "arithmetic"
+    ]
+    
+    # Keywords indicating heavy explanation or detailed instructions
+    complex_reasoning_keywords = [
+        "explain in detail", "step-by-step", "pros and cons", "compare and contrast",
+        "critical analysis", "detailed guide", "how to"
+    ]
+    
+    if any(kw in prompt_lower for kw in code_keywords):
+        print("Routing to Fireworks API (Coding task)")
+        return call_fireworks_api(prompt)
+        
+    if any(kw in prompt_lower for kw in math_logic_keywords):
+        print("Routing to Fireworks API (Math/Logic task)")
+        return call_fireworks_api(prompt)
+        
+    if any(kw in prompt_lower for kw in complex_reasoning_keywords):
+        print("Routing to Fireworks API (Complex Reasoning/Instructions)")
+        return call_fireworks_api(prompt)
+        
+    # If none of the above matches, it's likely a straightforward task (e.g. summarization, basic facts, short translation)
+    print("Routing to Local Model (Light task)")
+    return call_local_model(prompt)
+
+
+# ---------------------------------------------------------
+# 5. Main Execution Loop
+# ---------------------------------------------------------
+def main():
+    # Read the tasks [cite: 20]
+    if not os.path.exists(INPUT_PATH):
+        print(f"Input file not found at {INPUT_PATH}")
+        exit(1)
+        
+    import re
+    with open(INPUT_PATH, "r", encoding="utf-8") as f:
+        content = f.read()
+    # Clean up trailing commas so that standard json parser won't fail
+    content_clean = re.sub(r',\s*([\]}])', r'\1', content)
+    tasks = json.loads(content_clean)
+        
+    results = []
+
+    
+    # Process each task
+    for task in tasks:
+        task_id = task["task_id"]
+        prompt = task["prompt"]
+        print(f"Processing task: {task_id}...")
+        
+        try:
+            answer = route_task(prompt)
+        except Exception as e:
+            print(f"Error processing task {task_id}: {e}")
+            answer = "Error generating response."
+            
+        results.append({
+            "task_id": task_id,
+            "answer": answer
+        })
+        
+    # Write the results [cite: 26]
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump(results, f, indent=2)
+        
+    print(f"Successfully processed {len(tasks)} tasks. Exiting cleanly.")
+
+if __name__ == "__main__":
+    main()

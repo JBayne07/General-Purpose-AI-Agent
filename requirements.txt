@@ -2,3 +2,5 @@ numpy
 pandas
 fireworks-ai
 python-dotenv
+llama-cpp-python
+requests
