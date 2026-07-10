@@ -64,8 +64,13 @@ print("Local model loaded.")
 # ---------------------------------------------------------
 def call_local_model(prompt):
     """Processes the prompt using the local zero-cost model."""
+    system_instruction = (
+        "You are a highly precise and extremely concise assistant. "
+        "Answer the user query directly and briefly. Avoid conversational intro/outro and unnecessary words."
+    )
     response = llm.create_chat_completion(
         messages=[
+            {"role": "system", "content": system_instruction},
             {"role": "user", "content": prompt}
         ],
         max_tokens=256
@@ -73,7 +78,7 @@ def call_local_model(prompt):
     return response['choices'][0]['message']['content'].strip()
 
 
-def call_fireworks_api(prompt):
+def call_fireworks_api(prompt, task_type="general"):
     """Processes the prompt using the premium Fireworks API with retries and timeout."""
     import time
     url = f"{BASE_URL}/chat/completions"
@@ -83,10 +88,30 @@ def call_fireworks_api(prompt):
         "Content-Type": "application/json"
     }
     
+    if task_type == "code":
+        system_instruction = (
+            "You are a strict programming assistant. Your task is to output ONLY the requested code. "
+            "Do NOT include any conversational text, introductory thoughts, explanations, comments, or markdown explanations. "
+            "Output only raw or formatted code. Start your response directly with the code."
+        )
+    elif task_type == "math_logic":
+        system_instruction = (
+            "You are a precise math and logic assistant. Provide ONLY the final answer and a short, direct step-by-step logic proof. "
+            "Do NOT include any conversational filler."
+        )
+    else:
+        system_instruction = (
+            "You are a highly precise assistant. Provide correct, complete answers but keep your response direct and as concise as possible. "
+            "Avoid conversational intro/outro, friendly filler, or excessively long explanations."
+        )
+    
     payload = {
         "model": FIREWORKS_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 512
+        "messages": [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 1024
     }
     
     max_attempts = 3
@@ -104,6 +129,54 @@ def call_fireworks_api(prompt):
             time.sleep(wait_time)
 
 
+def is_simple_arithmetic(prompt_lower):
+    import re
+    # Map word numbers and operators
+    words_map = {
+        "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
+        "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+        "plus": "+", "minus": "-", "times": "*", "multiplied by": "*", "multiplied": "*",
+        "divided by": "/", "divided": "/", "percent of": "/100*", "percent": "/100"
+    }
+    cleaned = prompt_lower
+    for word, replacement in words_map.items():
+        cleaned = re.sub(r'\b' + re.escape(word) + r'\b', replacement, cleaned)
+    
+    cleaned = re.sub(r'(what is|calculate|solve|evaluate|\?|\s|\=)', '', cleaned)
+    return bool(re.match(r'^[\d\+\-\*\/\(\)\.]+$', cleaned)) and len(cleaned) > 0
+
+
+def classify_locally(prompt):
+    classification_prompt = (
+        "You are a task routing classifier. Decide if a prompt is SIMPLE (NLP tasks relying purely on text in the prompt, basic arithmetic, greetings) or COMPLEX (general knowledge, logic puzzles, coding, debugging, guides, reasoning).\n\n"
+        "Examples:\n"
+        "Prompt: \"Summarise the following: The cat sat on the mat.\"\n"
+        "Category: SIMPLE\n\n"
+        "Prompt: \"What is the capital of France?\"\n"
+        "Category: COMPLEX\n\n"
+        "Prompt: \"Write a python script to reverse a string\"\n"
+        "Category: COMPLEX\n\n"
+        "Prompt: \"Solve 2 + 2\"\n"
+        "Category: SIMPLE\n\n"
+        "Prompt: \"A container has 10L. 2L leaks out. How much is left?\"\n"
+        "Category: COMPLEX\n\n"
+        "Prompt: \"Extract all companies from this article: Apple announced new phones.\"\n"
+        "Category: SIMPLE\n\n"
+        f"Prompt: \"{prompt}\"\n"
+        "Category:"
+    )
+    
+    response = llm.create_chat_completion(
+        messages=[
+            {"role": "user", "content": classification_prompt}
+        ],
+        max_tokens=3,
+        temperature=0.0
+    )
+    content = response['choices'][0]['message']['content'].strip().upper()
+    return "SIMPLE" in content or "COMPLEX" not in content
+
+
 def route_task(prompt):
     """
     Decides whether to use the local model or the premium Fireworks API.
@@ -117,40 +190,63 @@ def route_task(prompt):
         print("Routing to Local Model (Fireworks API is unavailable)")
         return call_local_model(prompt)
         
-    prompt_lower = prompt.lower()
+    prompt_lower = prompt.lower().strip()
+    code_indicators = ["def ", "class ", "function", "bug", "python", "javascript", "c++", "regex"]
     
-    # If the prompt is very long, it requires larger context and better comprehension
+    # 1. Quick length limit (long tasks must be routed to the premium API)
     if len(prompt) > 800:
         print("Routing to Fireworks API (Long prompt context)")
         try:
-            return call_fireworks_api(prompt)
+            return call_fireworks_api(prompt, task_type="general")
         except Exception as e:
             print(f"Error calling Fireworks API: {e}. Falling back to local model.")
             FIREWORKS_AVAILABLE = False
             return call_local_model(prompt)
+            
+    # 2. Heuristics: Simple math check
+    if is_simple_arithmetic(prompt_lower):
+        print("Routing to Local Model (Simple Math Task)")
+        return call_local_model(prompt)
         
-    # Light task keywords (NLP tasks where Qwen 0.5B excels)
+    # 3. Heuristics: Coding/development keywords
+    if any(ind in prompt_lower for ind in code_indicators):
+        print("Routing to Fireworks API (Coding task keyword)")
+        try:
+            return call_fireworks_api(prompt, task_type="code")
+        except Exception as e:
+            print(f"Error calling Fireworks API: {e}. Falling back to local model.")
+            FIREWORKS_AVAILABLE = False
+            return call_local_model(prompt)
+            
+    # 4. Heuristics: Light NLP keywords
     light_keywords = [
         "summarize", "summarise", "summary", 
         "sentiment", "classify the sentiment", 
         "extract all named entities", "extract entities", "named entity extraction",
         "translate", "translation"
     ]
-    
-    # Check if prompt contains any of the light keywords
-    is_light = any(kw in prompt_lower for kw in light_keywords)
-    
-    # Heavy indicators (even if a light keyword is present, if it looks like coding/math it should go to Fireworks)
-    heavy_indicators = ["python", "javascript", "c++", "code", "bug", "function", "solve", "calculate"]
-    has_heavy = any(ind in prompt_lower for ind in heavy_indicators)
-    
-    if is_light and not has_heavy:
+    if any(kw in prompt_lower for kw in light_keywords):
         print("Routing to Local Model (Light NLP Task)")
         return call_local_model(prompt)
+        
+    # 5. LLM Classification fallback for ambiguous queries
+    print("Evaluating prompt complexity locally...")
+    is_simple = classify_locally(prompt)
+    if is_simple:
+        print("Routing to Local Model (LLM Classified Simple)")
+        return call_local_model(prompt)
     else:
-        print("Routing to Fireworks API (Heavy/Reasoning/Factual Task)")
+        print("Routing to Fireworks API (LLM Classified Complex)")
+        # Classify task type for optimized system prompting
+        if any(ind in prompt_lower for ind in code_indicators):
+            t_type = "code"
+        elif any(ind in prompt_lower for ind in ["solve", "calculate", "math", "logic", "puzzle", "riddle"]):
+            t_type = "math_logic"
+        else:
+            t_type = "general"
+            
         try:
-            return call_fireworks_api(prompt)
+            return call_fireworks_api(prompt, task_type=t_type)
         except Exception as e:
             print(f"Error calling Fireworks API: {e}. Falling back to local model.")
             FIREWORKS_AVAILABLE = False
