@@ -60,21 +60,35 @@ print("Local model loaded.")
 
 
 # ---------------------------------------------------------
-# 4. Helper Functions
+# 4. Helper Functions & Token Metrics
 # ---------------------------------------------------------
+token_metrics = {
+    "local_prompt_tokens": 0,
+    "local_completion_tokens": 0,
+    "api_prompt_tokens": 0,
+    "api_completion_tokens": 0
+}
+
 def call_local_model(prompt):
-    """Processes the prompt using the local zero-cost model."""
+    """Processes the prompt using the local zero-cost model and records token usage."""
     response = llm.create_chat_completion(
         messages=[
             {"role": "user", "content": prompt}
         ],
         max_tokens=256
     )
-    return response['choices'][0]['message']['content'].strip()
+    usage = response.get("usage", {})
+    p_tokens = usage.get("prompt_tokens", 0)
+    c_tokens = usage.get("completion_tokens", 0)
+    total_tokens = p_tokens + c_tokens
+    
+    token_metrics["local_prompt_tokens"] += p_tokens
+    token_metrics["local_completion_tokens"] += c_tokens
+    return response['choices'][0]['message']['content'].strip(), total_tokens
 
 
 def call_fireworks_api(prompt):
-    """Processes the prompt using the premium Fireworks API with retries and timeout."""
+    """Processes the prompt using the premium Fireworks API with retries, timeout, and token tracking."""
     import time
     url = f"{BASE_URL}/chat/completions"
     
@@ -94,7 +108,15 @@ def call_fireworks_api(prompt):
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=20)
             response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"].strip()
+            res_json = response.json()
+            usage = res_json.get("usage", {})
+            p_tokens = usage.get("prompt_tokens", 0)
+            c_tokens = usage.get("completion_tokens", 0)
+            total_tokens = p_tokens + c_tokens
+            
+            token_metrics["api_prompt_tokens"] += p_tokens
+            token_metrics["api_completion_tokens"] += c_tokens
+            return res_json["choices"][0]["message"]["content"].strip(), total_tokens
         except Exception as e:
             if attempt == max_attempts:
                 print(f"Fireworks API call failed after {max_attempts} attempts: {e}")
@@ -108,7 +130,8 @@ def route_task(prompt):
     """
     Decides whether to use the local model or the premium Fireworks API.
     Routes straightforward NLP tasks (summarization, sentiment analysis, extraction, simple translation)
-    to the zero-cost local model, and routes complex tasks (math, logic puzzles, coding, instructions, factual)
+    and simple arithmetic to the zero-cost local model.
+    Routes complex tasks (advanced math, logic puzzles, coding, instructions, factual)
     to the Fireworks API to maximize accuracy while minimizing cost.
     """
     global FIREWORKS_AVAILABLE
@@ -117,7 +140,17 @@ def route_task(prompt):
         print("Routing to Local Model (Fireworks API is unavailable)")
         return call_local_model(prompt)
         
-    prompt_lower = prompt.lower()
+    prompt_lower = prompt.lower().strip()
+    
+    import re
+    # Check for simple math (e.g., "1 + 1", "what is 5 * 6?")
+    math_cleaned = re.sub(r'(what is|calculate|solve|evaluate|\?|\s)', '', prompt_lower)
+    # If the remaining string contains only digits and basic operators, and isn't empty, it's simple math
+    is_simple_math = bool(re.match(r'^[\d\+\-\*\/\(\)\=\.]+$', math_cleaned)) and len(math_cleaned) > 0
+    
+    if is_simple_math:
+        print("Routing to Local Model (Simple Math Task)")
+        return call_local_model(prompt)
     
     # If the prompt is very long, it requires larger context and better comprehension
     if len(prompt) > 800:
@@ -129,7 +162,7 @@ def route_task(prompt):
             FIREWORKS_AVAILABLE = False
             return call_local_model(prompt)
         
-    # Light task keywords (NLP tasks where Qwen 0.5B excels)
+    # Light task keywords (NLP tasks where local model excels)
     light_keywords = [
         "summarize", "summarise", "summary", 
         "sentiment", "classify the sentiment", 
@@ -140,8 +173,8 @@ def route_task(prompt):
     # Check if prompt contains any of the light keywords
     is_light = any(kw in prompt_lower for kw in light_keywords)
     
-    # Heavy indicators (even if a light keyword is present, if it looks like coding/math it should go to Fireworks)
-    heavy_indicators = ["python", "javascript", "c++", "code", "bug", "function", "solve", "calculate"]
+    # Heavy indicators (even if a light keyword is present, if it looks like coding/advanced logic it should go to Fireworks)
+    heavy_indicators = ["python", "javascript", "c++", "code", "bug", "function", "integral", "derivative", "matrix"]
     has_heavy = any(ind in prompt_lower for ind in heavy_indicators)
     
     if is_light and not has_heavy:
@@ -184,22 +217,43 @@ def main():
         print(f"Processing task: {task_id}...")
         
         try:
-            answer = route_task(prompt)
+            answer, tokens_used = route_task(prompt)
         except Exception as e:
             print(f"Error processing task {task_id}: {e}")
             answer = "Error generating response."
+            tokens_used = 0
             
         results.append({
             "task_id": task_id,
-            "answer": answer
+            "answer": answer,
+            "tokens_used": tokens_used
         })
+        
+    # Sort results by tokens_used descending
+    results.sort(key=lambda x: x["tokens_used"], reverse=True)
         
     # Write the results [cite: 26]
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
     with open(OUTPUT_PATH, "w") as f:
-        json.dump(results, f, indent=2)
+        # Remove 'tokens_used' to strictly match the expected evaluation schema
+        final_results = [{"task_id": r["task_id"], "answer": r["answer"]} for r in results]
+        json.dump(final_results, f, indent=2)
         
     print(f"Successfully processed {len(tasks)} tasks. Exiting cleanly.")
+    
+    print("\n" + "="*40)
+    print("TOKEN USAGE REPORT:")
+    print(f"  Local Model Prompt Tokens:      {token_metrics['local_prompt_tokens']}")
+    print(f"  Local Model Completion Tokens:  {token_metrics['local_completion_tokens']}")
+    print(f"  Fireworks API Prompt Tokens:    {token_metrics['api_prompt_tokens']}")
+    print(f"  Fireworks API Completion Tokens: {token_metrics['api_completion_tokens']}")
+    print(f"  Total Local Tokens:             {token_metrics['local_prompt_tokens'] + token_metrics['local_completion_tokens']}")
+    print(f"  Total Fireworks API Tokens:     {token_metrics['api_prompt_tokens'] + token_metrics['api_completion_tokens']}")
+    print("="*40)
+    print("TOKEN USAGE BY TASK (Sorted Descending):")
+    for r in results:
+        print(f"  Task {r['task_id']}: {r['tokens_used']} tokens")
+    print("="*40 + "\n")
 
 if __name__ == "__main__":
     main()
