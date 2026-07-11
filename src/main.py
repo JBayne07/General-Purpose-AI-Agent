@@ -155,7 +155,8 @@ def call_local_model(prompt):
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": prompt}
         ],
-        max_tokens=256
+        max_tokens=256,
+        temperature=0.1
     )
     usage = response.get("usage", {})
     p_tokens = usage.get("prompt_tokens", 0)
@@ -242,7 +243,8 @@ def call_fireworks_api(prompt, task_type="general"):
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": prompt}
         ],
-        "max_tokens": 1024
+        "max_tokens": 1024,
+        "temperature": 0.1
     }
     
     max_attempts = 3
@@ -316,6 +318,39 @@ def classify_locally(prompt):
     return "SIMPLE" in content or "COMPLEX" not in content
 
 
+def remove_verbose_language_locally(prompt):
+    """Uses the local model to remove verbose language, conversational filler, greetings, and unnecessary words.
+    Keeps the core instructions, data, and context completely intact.
+    """
+    compression_prompt = (
+        "Rewrite the following prompt to remove verbose language, conversational filler, greetings, and unnecessary words. "
+        "Keep the core instructions, data, and context completely intact. Do not add explanations or formatting. Output only the revised prompt.\n\n"
+        f"Prompt: \"{prompt}\"\n"
+        "Revised Prompt:"
+    )
+    
+    response = llm.create_chat_completion(
+        messages=[
+            {"role": "user", "content": compression_prompt}
+        ],
+        max_tokens=512,
+        temperature=0.0
+    )
+    usage = response.get("usage", {})
+    p_tokens = usage.get("prompt_tokens", 0)
+    c_tokens = usage.get("completion_tokens", 0)
+    total_tokens = p_tokens + c_tokens
+    
+    token_metrics["local_prompt_tokens"] += p_tokens
+    token_metrics["local_completion_tokens"] += c_tokens
+    
+    revised = response['choices'][0]['message']['content'].strip()
+    if (revised.startswith('"') and revised.endswith('"')) or (revised.startswith("'") and revised.endswith("'")):
+        revised = revised[1:-1].strip()
+        
+    return revised, total_tokens
+
+
 def route_task(prompt):
     """
     Decides whether to use the local model or the premium Fireworks API.
@@ -325,37 +360,47 @@ def route_task(prompt):
     """
     global FIREWORKS_AVAILABLE
     
+    # 1. Clean verbose language using the local model before routing
+    cleaned_prompt, compression_tokens = remove_verbose_language_locally(prompt)
+    print(f"Compressed verbose prompt to: '{cleaned_prompt}'")
+    
     if not FIREWORKS_AVAILABLE:
         print("Routing to Local Model (Fireworks API is unavailable)")
-        return call_local_model(prompt)
+        ans, tokens = call_local_model(cleaned_prompt)
+        return ans, tokens + compression_tokens
         
-    prompt_lower = prompt.lower().strip()
+    prompt_lower = cleaned_prompt.lower().strip()
     code_indicators = ["def ", "class ", "function", "bug", "python", "javascript", "c++", "regex"]
     
     # 1. Quick length limit (long tasks must be routed to the premium API)
-    if len(prompt) > 800:
+    if len(cleaned_prompt) > 800:
         print("Routing to Fireworks API (Long prompt context)")
         try:
-            return call_fireworks_api(prompt, task_type="general")
+            ans, tokens = call_fireworks_api(cleaned_prompt, task_type="general")
+            return ans, tokens + compression_tokens
         except Exception as e:
             print(f"Error calling Fireworks API: {e}. Falling back to local model.")
             FIREWORKS_AVAILABLE = False
-            return call_local_model(prompt)
+            ans, tokens = call_local_model(cleaned_prompt)
+            return ans, tokens + compression_tokens
             
     # 2. Heuristics: Simple math check
     if is_simple_arithmetic(prompt_lower):
         print("Routing to Local Model (Simple Math Task)")
-        return call_local_model(prompt)
+        ans, tokens = call_local_model(cleaned_prompt)
+        return ans, tokens + compression_tokens
         
     # 3. Heuristics: Coding/development keywords
     if any(ind in prompt_lower for ind in code_indicators):
         print("Routing to Fireworks API (Coding task keyword)")
         try:
-            return call_fireworks_api(prompt, task_type="code")
+            ans, tokens = call_fireworks_api(cleaned_prompt, task_type="code")
+            return ans, tokens + compression_tokens
         except Exception as e:
             print(f"Error calling Fireworks API: {e}. Falling back to local model.")
             FIREWORKS_AVAILABLE = False
-            return call_local_model(prompt)
+            ans, tokens = call_local_model(cleaned_prompt)
+            return ans, tokens + compression_tokens
             
     # 4. Heuristics: Light NLP keywords
     light_keywords = [
@@ -366,14 +411,16 @@ def route_task(prompt):
     ]
     if any(kw in prompt_lower for kw in light_keywords):
         print("Routing to Local Model (Light NLP Task)")
-        return call_local_model(prompt)
+        ans, tokens = call_local_model(cleaned_prompt)
+        return ans, tokens + compression_tokens
         
     # 5. LLM Classification fallback for ambiguous queries
     print("Evaluating prompt complexity locally...")
-    is_simple = classify_locally(prompt)
+    is_simple = classify_locally(cleaned_prompt)
     if is_simple:
         print("Routing to Local Model (LLM Classified Simple)")
-        return call_local_model(prompt)
+        ans, tokens = call_local_model(cleaned_prompt)
+        return ans, tokens + compression_tokens
     else:
         print("Routing to Fireworks API (LLM Classified Complex)")
         # Classify task type for optimized system prompting
@@ -385,11 +432,13 @@ def route_task(prompt):
             t_type = "general"
             
         try:
-            return call_fireworks_api(prompt, task_type=t_type)
+            ans, tokens = call_fireworks_api(cleaned_prompt, task_type=t_type)
+            return ans, tokens + compression_tokens
         except Exception as e:
             print(f"Error calling Fireworks API: {e}. Falling back to local model.")
             FIREWORKS_AVAILABLE = False
-            return call_local_model(prompt)
+            ans, tokens = call_local_model(cleaned_prompt)
+            return ans, tokens + compression_tokens
 
 
 
