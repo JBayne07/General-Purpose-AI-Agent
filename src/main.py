@@ -487,22 +487,22 @@ def main():
     with open(OUTPUT_PATH, "w") as f:
         json.dump(results, f, indent=2)
 
-    # Write token tracking to a separate file only if set
-    if TOKEN_USAGE_PATH is not None:
-        token_report_data = {
-            "summary": {
-                "local_prompt_tokens": token_metrics['local_prompt_tokens'],
-                "local_completion_tokens": token_metrics['local_completion_tokens'],
-                "api_prompt_tokens": token_metrics['api_prompt_tokens'],
-                "api_completion_tokens": token_metrics['api_completion_tokens'],
-                "total_local_tokens": token_metrics['local_prompt_tokens'] + token_metrics['local_completion_tokens'],
-                "total_api_tokens": token_metrics['api_prompt_tokens'] + token_metrics['api_completion_tokens'],
-                "total_tokens": token_metrics['local_prompt_tokens'] + token_metrics['local_completion_tokens'] + token_metrics['api_prompt_tokens'] + token_metrics['api_completion_tokens']
-            },
-            "tasks": task_token_usage
-        }
-        with open(TOKEN_USAGE_PATH, "w") as f:
-            json.dump(token_report_data, f, indent=2)
+    # # Write token tracking to a separate file only if set
+    # if TOKEN_USAGE_PATH is not None:
+    #     token_report_data = {
+    #         "summary": {
+    #             "local_prompt_tokens": token_metrics['local_prompt_tokens'],
+    #             "local_completion_tokens": token_metrics['local_completion_tokens'],
+    #             "api_prompt_tokens": token_metrics['api_prompt_tokens'],
+    #             "api_completion_tokens": token_metrics['api_completion_tokens'],
+    #             "total_local_tokens": token_metrics['local_prompt_tokens'] + token_metrics['local_completion_tokens'],
+    #             "total_api_tokens": token_metrics['api_prompt_tokens'] + token_metrics['api_completion_tokens'],
+    #             "total_tokens": token_metrics['local_prompt_tokens'] + token_metrics['local_completion_tokens'] + token_metrics['api_prompt_tokens'] + token_metrics['api_completion_tokens']
+    #         },
+    #         "tasks": task_token_usage
+    #     }
+    #     with open(TOKEN_USAGE_PATH, "w") as f:
+    #         json.dump(token_report_data, f, indent=2)
         
     print(f"Successfully processed {len(tasks)} tasks. Exiting cleanly.")
 

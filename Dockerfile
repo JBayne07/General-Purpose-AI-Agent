@@ -28,4 +28,4 @@ COPY src/ ./src/
 COPY model.gguf ./model.gguf
 
 # Set the entrypoint to execute the smart router script
-CMD ["python", "src/test_main.py"]
+CMD ["python", "src/main.py"]
