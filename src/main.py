@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+# pyrefly: ignore [missing-import]
 from llama_cpp import Llama
 
 try:
@@ -21,7 +22,7 @@ try:
     API_KEY = os.environ["FIREWORKS_API_KEY"]
     BASE_URL = os.environ["FIREWORKS_BASE_URL"]
     # ALLOWED_MODELS is a comma-separated string
-    ALLOWED_MODELS = os.environ["ALLOWED_MODELS"].split(",")
+    ALLOWED_MODELS = [m.strip() for m in os.environ["ALLOWED_MODELS"].split(",")]
     
     # Pick the first allowed model for external calls (or write logic to select)
     FIREWORKS_MODEL = ALLOWED_MODELS[0] 
@@ -29,6 +30,78 @@ except KeyError as e:
     print(f"WARNING: Missing environment variable {e}. Fireworks API will be disabled.")
     FIREWORKS_AVAILABLE = False
 
+track_1_routing_matrix = {
+    "sentiment_classification": [
+        "accounts/fireworks/models/glm-5p2",
+        "accounts/fireworks/models/qwen3p7-plus",
+        "accounts/fireworks/models/kimi-k2p7-code",
+        "accounts/fireworks/models/minimax-m3",
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "accounts/fireworks/models/kimi-k2p6",
+        "accounts/fireworks/models/minimax-m2p7",
+        "accounts/fireworks/models/glm-5p1"
+    ],
+    "text_summarisation": [
+        "accounts/fireworks/models/glm-5p2",
+        "accounts/fireworks/models/qwen3p7-plus",
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "accounts/fireworks/models/minimax-m3",
+        "accounts/fireworks/models/kimi-k2p7-code",
+        "accounts/fireworks/models/kimi-k2p6",
+        "accounts/fireworks/models/minimax-m2p7",
+        "accounts/fireworks/models/glm-5p1"
+    ],
+    "named_entity_recognition": [
+        "accounts/fireworks/models/glm-5p2",
+        "accounts/fireworks/models/qwen3p7-plus",
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "accounts/fireworks/models/minimax-m3",
+        "accounts/fireworks/models/kimi-k2p7-code",
+        "accounts/fireworks/models/kimi-k2p6",
+        "accounts/fireworks/models/minimax-m2p7",
+        "accounts/fireworks/models/glm-5p1"
+    ],
+    "router_intent_classification": [
+        "accounts/fireworks/models/glm-5p2",
+        "accounts/fireworks/models/qwen3p7-plus",
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "accounts/fireworks/models/minimax-m3",
+        "accounts/fireworks/models/kimi-k2p7-code",
+        "accounts/fireworks/models/kimi-k2p6",
+        "accounts/fireworks/models/minimax-m2p7",
+        "accounts/fireworks/models/glm-5p1"
+    ],
+    "code_generation": [
+        "accounts/fireworks/models/kimi-k2p7-code",
+        "accounts/fireworks/models/glm-5p2",
+        "accounts/fireworks/models/qwen3p7-plus",
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "accounts/fireworks/models/kimi-k2p6",
+        "accounts/fireworks/models/minimax-m3",
+        "accounts/fireworks/models/glm-5p1",
+        "accounts/fireworks/models/minimax-m2p7"
+    ],
+    "code_debugging": [
+        "accounts/fireworks/models/kimi-k2p7-code",
+        "accounts/fireworks/models/glm-5p2",
+        "accounts/fireworks/models/qwen3p7-plus",
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "accounts/fireworks/models/kimi-k2p6",
+        "accounts/fireworks/models/minimax-m3",
+        "accounts/fireworks/models/glm-5p1",
+        "accounts/fireworks/models/minimax-m2p7"
+    ],
+    "multi_step_math": [
+        "accounts/fireworks/models/qwen3p7-plus",
+        "accounts/fireworks/models/glm-5p2",
+        "accounts/fireworks/models/kimi-k2p7-code",
+        "accounts/fireworks/models/minimax-m3",
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "accounts/fireworks/models/kimi-k2p6",
+        "accounts/fireworks/models/minimax-m2p7",
+        "accounts/fireworks/models/glm-5p1"
+    ]
+}
 
 # ---------------------------------------------------------
 # 2. File I/O Paths
@@ -104,6 +177,48 @@ def call_fireworks_api(prompt, task_type="general"):
         "Content-Type": "application/json"
     }
     
+    # Choose model based on track_1_routing_matrix and ALLOWED_MODELS
+    task_category = None
+    prompt_lower = prompt.lower().strip()
+    
+    if task_type == "code":
+        if "bug" in prompt_lower or "fix" in prompt_lower or "correct" in prompt_lower:
+            task_category = "code_debugging"
+        else:
+            task_category = "code_generation"
+    elif task_type == "math_logic":
+        task_category = "multi_step_math"
+    else:
+        # Heuristics based on prompt content
+        if any(kw in prompt_lower for kw in ["summarize", "summarise", "summary"]):
+            task_category = "text_summarisation"
+        elif any(kw in prompt_lower for kw in ["sentiment", "classify the sentiment"]):
+            task_category = "sentiment_classification"
+        elif any(kw in prompt_lower for kw in ["extract all named entities", "extract entities", "named entity extraction", "ner"]):
+            task_category = "named_entity_recognition"
+        elif any(kw in prompt_lower for kw in ["routing", "router", "intent"]):
+            task_category = "router_intent_classification"
+        elif any(ind in prompt_lower for ind in ["def ", "class ", "function", "python", "javascript", "c++", "regex"]):
+            if "bug" in prompt_lower or "fix" in prompt_lower:
+                task_category = "code_debugging"
+            else:
+                task_category = "code_generation"
+        elif any(ind in prompt_lower for ind in ["solve", "calculate", "math", "logic", "puzzle", "riddle", "percent", "remain"]):
+            task_category = "multi_step_math"
+        else:
+            task_category = "sentiment_classification"
+            
+    chosen_model = None
+    for model_name in track_1_routing_matrix.get(task_category, []):
+        if model_name in ALLOWED_MODELS:
+            chosen_model = model_name
+            break
+            
+    if not chosen_model:
+        chosen_model = FIREWORKS_MODEL
+        
+    print(f"Routing task category '{task_category}' to model: {chosen_model}")
+    
     if task_type == "code":
         system_instruction = (
             "You are a strict programming assistant. Your task is to output ONLY the requested code. "
@@ -122,7 +237,7 @@ def call_fireworks_api(prompt, task_type="general"):
         )
     
     payload = {
-        "model": FIREWORKS_MODEL,
+        "model": chosen_model,
         "messages": [
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": prompt}
