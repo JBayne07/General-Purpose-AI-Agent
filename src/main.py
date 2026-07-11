@@ -36,11 +36,13 @@ except KeyError as e:
 if os.path.exists("/input/tasks.json"):
     INPUT_PATH = "/input/tasks.json"
     OUTPUT_PATH = "/output/results.json"
+    TOKEN_USAGE_PATH = "/output/token_usage.json"
 else:
     # Resolve relative to the repository root
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     INPUT_PATH = os.path.join(base_dir, "input", "tasks.json")
     OUTPUT_PATH = os.path.join(base_dir, "output", "results.json")
+    TOKEN_USAGE_PATH = os.path.join(base_dir, "output", "token_usage.json")
 
 # ---------------------------------------------------------
 # 3. Initialize Local Model (Zero Cost)
@@ -60,10 +62,17 @@ print("Local model loaded.")
 
 
 # ---------------------------------------------------------
-# 4. Helper Functions
+# 4. Helper Functions & Token Metrics
 # ---------------------------------------------------------
+token_metrics = {
+    "local_prompt_tokens": 0,
+    "local_completion_tokens": 0,
+    "api_prompt_tokens": 0,
+    "api_completion_tokens": 0
+}
+
 def call_local_model(prompt):
-    """Processes the prompt using the local zero-cost model."""
+    """Processes the prompt using the local zero-cost model and records token usage."""
     system_instruction = (
         "You are a highly precise and extremely concise assistant. "
         "Answer the user query directly and briefly. Avoid conversational intro/outro and unnecessary words."
@@ -75,11 +84,18 @@ def call_local_model(prompt):
         ],
         max_tokens=256
     )
-    return response['choices'][0]['message']['content'].strip()
+    usage = response.get("usage", {})
+    p_tokens = usage.get("prompt_tokens", 0)
+    c_tokens = usage.get("completion_tokens", 0)
+    total_tokens = p_tokens + c_tokens
+    
+    token_metrics["local_prompt_tokens"] += p_tokens
+    token_metrics["local_completion_tokens"] += c_tokens
+    return response['choices'][0]['message']['content'].strip(), total_tokens
 
 
 def call_fireworks_api(prompt, task_type="general"):
-    """Processes the prompt using the premium Fireworks API with retries and timeout."""
+    """Processes the prompt using the premium Fireworks API with retries, timeout, and token tracking."""
     import time
     url = f"{BASE_URL}/chat/completions"
     
@@ -119,7 +135,15 @@ def call_fireworks_api(prompt, task_type="general"):
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=20)
             response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"].strip()
+            res_json = response.json()
+            usage = res_json.get("usage", {})
+            p_tokens = usage.get("prompt_tokens", 0)
+            c_tokens = usage.get("completion_tokens", 0)
+            total_tokens = p_tokens + c_tokens
+            
+            token_metrics["api_prompt_tokens"] += p_tokens
+            token_metrics["api_completion_tokens"] += c_tokens
+            return res_json["choices"][0]["message"]["content"].strip(), total_tokens
         except Exception as e:
             if attempt == max_attempts:
                 print(f"Fireworks API call failed after {max_attempts} attempts: {e}")
@@ -273,6 +297,8 @@ def main():
     results = []
 
     
+    task_token_usage = {}
+    
     # Process each task
     for task in tasks:
         task_id = task["task_id"]
@@ -280,20 +306,38 @@ def main():
         print(f"Processing task: {task_id}...")
         
         try:
-            answer = route_task(prompt)
+            answer, tokens_used = route_task(prompt)
         except Exception as e:
             print(f"Error processing task {task_id}: {e}")
             answer = "Error generating response."
+            tokens_used = 0
             
         results.append({
             "task_id": task_id,
             "answer": answer
         })
+        task_token_usage[task_id] = tokens_used
         
     # Write the results
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
     with open(OUTPUT_PATH, "w") as f:
         json.dump(results, f, indent=2)
+
+    # Write token tracking to a separate file
+    token_report_data = {
+        "summary": {
+            "local_prompt_tokens": token_metrics['local_prompt_tokens'],
+            "local_completion_tokens": token_metrics['local_completion_tokens'],
+            "api_prompt_tokens": token_metrics['api_prompt_tokens'],
+            "api_completion_tokens": token_metrics['api_completion_tokens'],
+            "total_local_tokens": token_metrics['local_prompt_tokens'] + token_metrics['local_completion_tokens'],
+            "total_api_tokens": token_metrics['api_prompt_tokens'] + token_metrics['api_completion_tokens'],
+            "total_tokens": token_metrics['local_prompt_tokens'] + token_metrics['local_completion_tokens'] + token_metrics['api_prompt_tokens'] + token_metrics['api_completion_tokens']
+        },
+        "tasks": task_token_usage
+    }
+    with open(TOKEN_USAGE_PATH, "w") as f:
+        json.dump(token_report_data, f, indent=2)
         
     print(f"Successfully processed {len(tasks)} tasks. Exiting cleanly.")
 

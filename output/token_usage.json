@@ -1,0 +1,25 @@
+{
+  "summary": {
+    "local_prompt_tokens": 396,
+    "local_completion_tokens": 66,
+    "api_prompt_tokens": 415,
+    "api_completion_tokens": 1431,
+    "total_local_tokens": 462,
+    "total_api_tokens": 1846,
+    "total_tokens": 2308
+  },
+  "tasks": {
+    "t1": 70,
+    "t2": 49,
+    "t3": 51,
+    "t4": 405,
+    "practice-01": 550,
+    "practice-02": 246,
+    "practice-03": 63,
+    "practice-04": 150,
+    "practice-05": 79,
+    "practice-06": 279,
+    "practice-07": 90,
+    "practice-08": 276
+  }
+}

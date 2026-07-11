@@ -36,11 +36,13 @@ except KeyError as e:
 if os.path.exists("/input/tasks.json"):
     INPUT_PATH = "/input/tasks.json" # [cite: 20]
     OUTPUT_PATH = "/output/results.json" # [cite: 26]
+    TOKEN_USAGE_PATH = "/output/token_usage.json"
 else:
     # Resolve relative to the repository root
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     INPUT_PATH = os.path.join(base_dir, "input", "tasks.json")
     OUTPUT_PATH = os.path.join(base_dir, "output", "results.json")
+    TOKEN_USAGE_PATH = os.path.join(base_dir, "output", "token_usage.json")
 
 # ---------------------------------------------------------
 # 3. Initialize Local Model (Zero Cost)
@@ -324,6 +326,22 @@ def main():
         # Remove 'tokens_used' to strictly match the expected evaluation schema
         final_results = [{"task_id": r["task_id"], "answer": r["answer"]} for r in results]
         json.dump(final_results, f, indent=2)
+
+    # Write token tracking to a separate file
+    token_report_data = {
+        "summary": {
+            "local_prompt_tokens": token_metrics['local_prompt_tokens'],
+            "local_completion_tokens": token_metrics['local_completion_tokens'],
+            "api_prompt_tokens": token_metrics['api_prompt_tokens'],
+            "api_completion_tokens": token_metrics['api_completion_tokens'],
+            "total_local_tokens": token_metrics['local_prompt_tokens'] + token_metrics['local_completion_tokens'],
+            "total_api_tokens": token_metrics['api_prompt_tokens'] + token_metrics['api_completion_tokens'],
+            "total_tokens": token_metrics['local_prompt_tokens'] + token_metrics['local_completion_tokens'] + token_metrics['api_prompt_tokens'] + token_metrics['api_completion_tokens']
+        },
+        "tasks": {r["task_id"]: r["tokens_used"] for r in results}
+    }
+    with open(TOKEN_USAGE_PATH, "w") as f:
+        json.dump(token_report_data, f, indent=2)
         
     print(f"Successfully processed {len(tasks)} tasks. Exiting cleanly.")
     
